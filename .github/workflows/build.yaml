@@ -13,7 +13,7 @@ env:
   AWS_REGION_ECR: "us-east-1"
   IMAGE_NAME: ratings-ms
   PROJECT: "robot-shop"
-  RELEASE: cart-microservice
+  RELEASE: ratings-microservice
 
 jobs:
     prepare:
@@ -110,11 +110,10 @@ jobs:
           helm upgrade ${{ env.RELEASE }} ${{ steps.helmcharts.outputs.chart_path }} \
           -f ${{ steps.helmcharts.outputs.chart_path }}/values.yaml -f ${{ steps.helmcharts.outputs.chart_path }}/values-dev.yaml \
           --namespace ${{ env.namespace }} --install --atomic \
-          --set cart.container.image.repo=${{ env.ECR_URL }}/robot-shop \
-          --set cart.container.image.version=${{ env.IMAGE_NAME }}-${{ needs.build.outputs.IMAGE_TAG }}
+          --set ratings.container.image.repo=${{ env.ECR_URL }}/robot-shop \
+          --set ratings.container.image.version=${{ env.IMAGE_NAME }}-${{ needs.build.outputs.IMAGE_TAG }}
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/cart-deployment --namespace ${{ env.namespace }}
-          kubectl rollout status statefulset/redis-statefulset --namespace ${{ env.namespace }}
+          kubectl rollout status deployment/ratings-deployment --namespace ${{ env.namespace }}
           helm status ${{ env.RELEASE }} --namespace ${{ env.namespace }} --output table
