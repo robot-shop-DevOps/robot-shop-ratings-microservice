@@ -1,0 +1,15 @@
+name: Build and Deploy ratings microservice to Development
+
+on:
+  push:
+    branches-ignore: main
+
+jobs:
+    prepare:
+      runs-on: robot-shop-runner
+
+    build:
+      runs-on: robot-shop-runner
+
+    deploy:
+      runs-on: robot-shop-runner
