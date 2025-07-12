@@ -1,0 +1,6 @@
+env: dev
+
+ratings:
+  replicas: 1
+  labels:
+    env: dev
