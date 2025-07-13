@@ -50,19 +50,23 @@ jobs:
       - name: Build docker image
         run: |
           #ratings ms image
+          echo "Building ratings microservice image"
           docker build -t ${{ env.IMAGE_NAME }} .
           docker tag ${{ env.IMAGE_NAME }} ${{ env.ECR_URL }}/robot-shop:${{ env.IMAGE_NAME }}-${{ steps.version.outputs.IMAGE_TAG }}
 
           #mysql image
+          echo "Building mysql image"
           docker build -t mysql ./mysql
           docker tag mysql ${{ env.ECR_URL }}/robot-shop:mysql-${{ steps.version.outputs.IMAGE_TAG }}
       
       - name: Push docker image
         run: |
           #ratings ms image
+          echo "Pushing ratings microservice image"
           docker push ${{ env.ECR_URL }}/robot-shop:${{ env.IMAGE_NAME }}-${{ steps.version.outputs.IMAGE_TAG }}
 
           #mysql image
+          echo "Pushing mysql image"
           docker push ${{ env.ECR_URL }}/robot-shop:mysql-${{ steps.version.outputs.IMAGE_TAG }}
 
     deploy:
@@ -122,11 +126,12 @@ jobs:
           -f ${{ steps.helmcharts.outputs.chart_path }}/values.yaml -f ${{ steps.helmcharts.outputs.chart_path }}/values-dev.yaml \
           --namespace ${{ env.namespace }} --install --atomic \
           --set ratings.container.image.repo=${{ env.ECR_URL }}/robot-shop \
-          --set ratings.container.image.version=${{ env.IMAGE_NAME }}-${{ needs.build.outputs.IMAGE_TAG }}
+          --set ratings.container.image.version=${{ env.IMAGE_NAME }}-${{ needs.build.outputs.IMAGE_TAG }} \
           --set mysql.container.image.repo=${{ env.ECR_URL }}/robot-shop \
           --set mysql.container.image.version=mysql-${{ needs.build.outputs.IMAGE_TAG }}
 
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/ratings-deployment --namespace ${{ env.namespace }}
+          kubectl rollout status deployment/mysql-deployment --namespace ${{ env.namespace }}
           helm status ${{ env.RELEASE }} --namespace ${{ env.namespace }} --output table
