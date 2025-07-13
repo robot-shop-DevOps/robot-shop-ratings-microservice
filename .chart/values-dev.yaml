@@ -4,3 +4,8 @@ ratings:
   replicas: 1
   labels:
     env: dev
+
+mysql:
+  replicas: 1
+  labels:
+    env: dev

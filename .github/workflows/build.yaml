@@ -49,12 +49,21 @@ jobs:
 
       - name: Build docker image
         run: |
+          #ratings ms image
           docker build -t ${{ env.IMAGE_NAME }} .
           docker tag ${{ env.IMAGE_NAME }} ${{ env.ECR_URL }}/robot-shop:${{ env.IMAGE_NAME }}-${{ steps.version.outputs.IMAGE_TAG }}
+
+          #mysql image
+          docker build -t mysql ./mysql
+          docker tag mysql ${{ env.ECR_URL }}/robot-shop:mysql-${{ steps.version.outputs.IMAGE_TAG }}
       
       - name: Push docker image
         run: |
+          #ratings ms image
           docker push ${{ env.ECR_URL }}/robot-shop:${{ env.IMAGE_NAME }}-${{ steps.version.outputs.IMAGE_TAG }}
+
+          #mysql image
+          docker push ${{ env.ECR_URL }}/robot-shop:mysql-${{ steps.version.outputs.IMAGE_TAG }}
 
     deploy:
       if: ${{ github.ref_name == 'develop' || github.ref_name == 'main' }}
@@ -114,6 +123,8 @@ jobs:
           --namespace ${{ env.namespace }} --install --atomic \
           --set ratings.container.image.repo=${{ env.ECR_URL }}/robot-shop \
           --set ratings.container.image.version=${{ env.IMAGE_NAME }}-${{ needs.build.outputs.IMAGE_TAG }}
+          --set mysql.container.image.repo=${{ env.ECR_URL }}/robot-shop \
+          --set mysql.container.image.version=mysql-${{ needs.build.outputs.IMAGE_TAG }}
 
       - name: Verify deployment
         run: |

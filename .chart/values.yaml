@@ -26,3 +26,24 @@ ratings:
     type: ClusterIP
     port: 80
     targetPort: 80
+
+mysql:
+  microservice: mysql
+  labels:
+    service: mysql
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  container:
+    image:
+      repo: ${REPO}    # <-- placeholder
+      version: ${IMAGE_TAG}    # <-- placeholder
+      pullPolicy: IfNotPresent
+    port: 3306
+  service:
+    type: ClusterIP
+    port: 3306
+    targetPort: 3306
