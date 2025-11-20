@@ -4,10 +4,14 @@ FROM robotshopdevacr.azurecr.io/baseimages/php:8.4-cli-alpine-internal AS build
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    libcurl4-openssl-dev \
+RUN apk update && apk add --no-cache \
+    curl-dev \
+    mysql-client \
+    libcurl \
     unzip \
-    && docker-php-ext-install pdo pdo_mysql
+    $PHPIZE_DEPS
+
+RUN docker-php-ext-install pdo pdo_mysql
 
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 
