@@ -1,49 +1,89 @@
-ratings:
-  microservice: ratings
-  labels:
-    service: ratings
-  replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 1
-      maxSurge: 1
-  container:
-    image:
-      repo: ${REPO}    # <-- placeholder
-      version: ${IMAGE_TAG}    # <-- placeholder
-      pullPolicy: IfNotPresent
-    port: 80
-    readinessProbe:
-      httpGet:
-        path: /_health
-        port: 80
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      failureThreshold: 30
-      successThreshold: 1
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 80
+labels:
+  app: Ratings
+  project: Robot-Shop
+  technology: Php
+  environment: default 
 
-mysql:
-  microservice: mysql
-  labels:
-    service: mysql
+deployment:
+  name: ratings
+
   replicas: 1
-  strategy:
+
+  updateStrategy:
     type: RollingUpdate
     rollingUpdate:
       maxUnavailable: 1
-      maxSurge: 1
-  container:
-    image:
-      repo: ${REPO}    # <-- placeholder
-      version: ${IMAGE_TAG}    # <-- placeholder
-      pullPolicy: IfNotPresent
-    port: 3306
-  service:
-    type: ClusterIP
-    port: 3306
-    targetPort: 3306
+
+  pod:
+    nodeSelector:
+      project: Robot-Shop
+
+    containers:  
+    - name: ratings
+
+      image: ${IMAGE}  # <-- placeholder
+
+      imagePullPolicy: Always
+
+      ports:
+      - containerPort: 8626
+
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "128Mi"
+
+        limits:
+          cpu: "200m"
+          memory: "512Mi"
+
+      env:
+      - name: CATALOGUE_URL
+        value: http://catalogue.catalogue-microservice.svc.cluster.local:8226
+        
+      - name: PDO_URL
+        valueFrom:
+          secretKeyRef:
+            name: mysql
+            key: URL
+
+      - name: PDO_USER  
+        valueFrom:
+          secretKeyRef:
+            name: mysql
+            key: USER
+
+      - name: PDO_PASSWORD 
+        valueFrom:
+          secretKeyRef:
+            name: mysql
+            key: PASSWORD
+
+      readinessProbe:
+        httpGet:
+          path: /_health
+          port: 8626
+        initialDelaySeconds: 20
+        periodSeconds: 10
+        timeoutSeconds: 6
+        failureThreshold: 5
+
+      livenessProbe:
+        httpGet:
+          path: /_health
+          port: 8626
+        initialDelaySeconds: 20
+        periodSeconds: 20
+        timeoutSeconds: 6
+        failureThreshold: 5
+
+
+service:
+  name: ratings
+
+  type: ClusterIP
+
+  ports:
+  - name: shipping
+    port: 8626
+    targetPort: 8626

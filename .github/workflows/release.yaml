@@ -1,4 +1,4 @@
-name: Build and Deploy release microservice to Pre-Production
+name: Build and Deploy ratings microservice to Pre-Production
 
 on:
   workflow_dispatch:
