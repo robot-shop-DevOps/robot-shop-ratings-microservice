@@ -2,22 +2,91 @@ name: Build and Deploy ratings microservice to Development
 
 on:
   push:
-    branches-ignore: main
+    branches:
+      - '**'   
+
+  pull_request:
+    branches:
+      - develop
 
 env:
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  ECR_URL: public.ecr.aws/v1g8i1q6 
-  AWS_REGION: "ap-south-1"
-  AWS_REGION_ECR: "us-east-1"
-  IMAGE_NAME: ratings-ms
-  PROJECT: "robot-shop"
-  RELEASE: ratings-microservice
+  REGISTRY_NAME: robotshopdevacr
+  REGISTRY_URL: robotshopdevacr.azurecr.io
+  IMAGE_NAME: ratings
+  NAMESPACE: ratings-microservice
+  RELEASE: ratings
 
 jobs:
-    prepare:
-      runs-on: robot-shop-runner
+    test:
+      runs-on: robot-shop-runner-azure-dev
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, curl, pdo_mysql
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v3
+        with:
+          path: ratings/html/vendor
+          key: composer-${{ hashFiles('ratings/html/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Composer install
+        working-directory: ratings/html
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run PHPUnit tests
+        working-directory: ratings/html
+        run: vendor/bin/phpunit --testdox --log-junit junit.xml
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-results
+          path: ratings/html/junit.xml
+
+    build:
+      runs-on: robot-shop-runner-azure-dev
+      needs: test
+      outputs:
+        IMAGE_TAG: ${{ steps.version.outputs.IMAGE_TAG }}
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Get latest image tag
+        id: version
+        run: |
+          branch_name=$(echo "$GITHUB_REF_NAME" | tr '/' '-')
+          image_tag="$branch_name-${GITHUB_SHA::8}"
+          echo "IMAGE_TAG=$image_tag" >> $GITHUB_OUTPUT
+
+      - name: Log in to ACR with Buildah
+        run: |
+          az login --service-principal -u ${{ secrets.ROBOT_SHOP_DEV_AZURE_CLIENT_ID_ACR }} -p ${{ secrets.ROBOT_SHOP_DEV_AZURE_CLIENT_SECRET_ACR }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az account set --subscription ${{ secrets.ROBOT_SHOP_DEV_AZURE_SUBSCRIPTION_ID }}
+          Token=$(az acr login --name ${{ env.REGISTRY_NAME }} --expose-token --output json | jq -r '.accessToken')   
+          buildah login ${{ env.REGISTRY_URL }} -u 00000000-0000-0000-0000-000000000000 -p $Token 
+
+      - name: Build image with Buildah
+        run: |
+          buildah build -t ${{ env.IMAGE_NAME }} ./ratings
+          buildah tag ${{ env.IMAGE_NAME }} ${{ env.REGISTRY_URL }}/robot-shop/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.IMAGE_TAG }}
+
+      - name: Push image with Buildah
+        run: |
+          buildah push ${{ env.REGISTRY_URL }}/robot-shop/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.IMAGE_TAG }}
+
+    deploy:
+      if: ${{ github.ref_name == 'develop' }}
+      needs: build
+      runs-on: robot-shop-runner-azure-dev
       steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,72 +96,10 @@ jobs:
         with:
           version: 3.9.0
 
-    build:
-      needs: prepare
-      runs-on: robot-shop-runner
-      outputs:
-        IMAGE_TAG: ${{ steps.version.outputs.IMAGE_TAG }}
-      steps:
-      - name: Get latest docker image version
-        id: version
-        run: |
-          image_tag=${GITHUB_SHA::8}
-          echo "IMAGE_TAG=$image_tag" >> $GITHUB_OUTPUT
-
-      - name: Login to ECR
-        run: |
-          aws ecr-public get-login-password \
-            --region ${{ env.AWS_REGION_ECR }} | \
-            docker login \
-            --username AWS \
-            --password-stdin ${{ env.ECR_URL }}     
-
-      - name: Build docker image
-        run: |
-          #ratings ms image
-          echo "Building ratings microservice image"
-          docker build -t ${{ env.IMAGE_NAME }} .
-          docker tag ${{ env.IMAGE_NAME }} ${{ env.ECR_URL }}/robot-shop:${{ env.IMAGE_NAME }}-${{ steps.version.outputs.IMAGE_TAG }}
-
-          #mysql image
-          echo "Building mysql image"
-          docker build -t mysql ./mysql
-          docker tag mysql ${{ env.ECR_URL }}/robot-shop:mysql-${{ steps.version.outputs.IMAGE_TAG }}
-      
-      - name: Push docker image
-        run: |
-          #ratings ms image
-          echo "Pushing ratings microservice image"
-          docker push ${{ env.ECR_URL }}/robot-shop:${{ env.IMAGE_NAME }}-${{ steps.version.outputs.IMAGE_TAG }}
-
-          #mysql image
-          echo "Pushing mysql image"
-          docker push ${{ env.ECR_URL }}/robot-shop:mysql-${{ steps.version.outputs.IMAGE_TAG }}
-
-    deploy:
-      if: ${{ github.ref_name == 'develop' || github.ref_name == 'main' }}
-      needs: build
-      runs-on: robot-shop-runner
-      steps:
-      - name: Check minikube connectivity
-        run: |
-          set -e
-          if minikube status > /dev/null; then
-            echo "✅ Minikube is running!"
-          else
-            echo "❌ Minikube is not running"
-          fi
-
-          if kubectl get nodes > /dev/null; then
-            echo "✅ Minikube cluster is reachable"
-          else
-            echo "❌ Minikube cluster not reachable"
-          fi
-
       - name: Find project namespace
         run: |
-          if kubectl get ns ${{ env.PROJECT }}-dev > /dev/null; then
-            echo "namespace=${{ env.PROJECT }}-dev" >> $GITHUB_ENV
+          if kubectl get ns ${{ env.NAMESPACE }} > /dev/null; then
+            echo "namespace=${{ env.NAMESPACE }}" >> $GITHUB_ENV
             echo "namespace_found=true" >> $GITHUB_ENV
           fi
 
@@ -100,11 +107,10 @@ jobs:
         if: ${{ env.namespace_found != 'true'}}
         run: |
           set -e
-          if kubectl create ns ${{ env.PROJECT }}-dev > /dev/null; then
-            echo "✅ Namespace ${{ env.PROJECT }}-dev created."
-            echo "namespace=${{ env.PROJECT }}-dev" >> $GITHUB_ENV
+          if kubectl create ns ${{ env.NAMESPACE }} > /dev/null; then
+            echo "Namespace ${{ env.NAMESPACE }} created."
           else
-            echo "❌ Namespace ${{ env.PROJECT }}-dev failed to create."
+            echo "Namespace ${{ env.NAMESPACE }} failed to create."
           fi
 
       - name: Validate helm charts
@@ -116,22 +122,19 @@ jobs:
             exit 1
           fi
           
-          echo "chart_path=$chart_path" >> $GITHUB_OUTPUT
+          echo "chart_path=$chart_path" >> $GITHUB_ENV
           cd $chart_path
           helm lint
 
       - name: Deploy with helm
         run: |
-          helm upgrade ${{ env.RELEASE }} ${{ steps.helmcharts.outputs.chart_path }} \
-          -f ${{ steps.helmcharts.outputs.chart_path }}/values.yaml -f ${{ steps.helmcharts.outputs.chart_path }}/values-dev.yaml \
-          --namespace ${{ env.namespace }} --install --atomic \
-          --set ratings.container.image.repo=${{ env.ECR_URL }}/robot-shop \
-          --set ratings.container.image.version=${{ env.IMAGE_NAME }}-${{ needs.build.outputs.IMAGE_TAG }} \
-          --set mysql.container.image.repo=${{ env.ECR_URL }}/robot-shop \
-          --set mysql.container.image.version=mysql-${{ needs.build.outputs.IMAGE_TAG }}
+          helm upgrade ${{ env.RELEASE }} ${{ env.chart_path }} \
+          -f ${{ env.chart_path }}/values.yaml -f ${{ env.chart_path }}/values/values_dev.yaml \
+          --namespace ${{ env.NAMESPACE }} --install --atomic \
+          --set deployment.pod.containers[0].image="${{ env.REGISTRY_URL }}/robot-shop/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.IMAGE_TAG }}"
+
 
       - name: Verify deployment
-        run: |
-          kubectl rollout status deployment/ratings-deployment --namespace ${{ env.namespace }}
-          kubectl rollout status deployment/mysql-deployment --namespace ${{ env.namespace }}
-          helm status ${{ env.RELEASE }} --namespace ${{ env.namespace }} --output table
+        run: | 
+          kubectl rollout status deployment/ratings --namespace ${{ env.NAMESPACE }}
+          helm status ${{ env.RELEASE }} --namespace ${{ env.NAMESPACE }} --output table
