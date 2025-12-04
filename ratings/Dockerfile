@@ -12,8 +12,8 @@ RUN apk update && apk add --no-cache \
     $PHPIZE_DEPS
 
 RUN apk add --no-cache \
-    php8.4-pdo \
-    php8.4-pdo_mysql
+    php-pdo \
+    php-pdo_mysql
 
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 
