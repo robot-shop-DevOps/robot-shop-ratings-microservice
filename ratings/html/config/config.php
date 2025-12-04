@@ -11,6 +11,8 @@ return [
 
     'catalogue_url' => $_ENV['CATALOGUE_URL'],
 
+    'jwt_secret' => $_ENV['JWT_SECRET'],
+
     'database' => [
         'dsn'      => $_ENV['PDO_URL'],
         'user'     => $_ENV['PDO_USER'],

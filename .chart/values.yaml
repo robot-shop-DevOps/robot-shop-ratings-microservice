@@ -59,6 +59,12 @@ deployment:
             name: mysql
             key: PASSWORD
 
+      - name: JWT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: jwt
+            key: JWT_SECRET
+
       readinessProbe:
         httpGet:
           path: /_health
