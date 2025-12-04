@@ -70,7 +70,7 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
         ]);
 
         // App parameters
-        $config = require __DIR__ . '/config/config.php';
+        $config = require __DIR__ . '/../config/config.php';
 
         $c->setParameter('catalogueUrl',  $config['catalogue_url']);
         $c->setParameter('pdo_dsn',       $config['database']['dsn']);
