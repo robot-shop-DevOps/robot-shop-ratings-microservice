@@ -17,7 +17,10 @@ WORKDIR /app
 RUN apk update && apk add --no-cache \
     curl-dev \
     mysql-client \
+    mysql-dev \
     libcurl \
+    libxml2-dev \
+    openssl-dev \
     unzip \
     $PHPIZE_DEPS
 
