@@ -11,7 +11,9 @@ RUN apk update && apk add --no-cache \
     unzip \
     $PHPIZE_DEPS
 
-RUN docker-php-ext-install pdo pdo_mysql
+RUN apk add --no-cache \
+    php-pdo \
+    php-pdo_mysql
 
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 
