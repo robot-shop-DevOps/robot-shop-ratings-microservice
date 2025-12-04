@@ -72,11 +72,14 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
         // App parameters
         $config = require __DIR__ . '/config/config.php';
 
-        $c->setParameter('catalogueUrl', $config['catalogue_url']);
-        $c->setParameter('pdo_dsn',      $config['database']['dsn']);
-        $c->setParameter('pdo_user',     $config['database']['user']);
-        $c->setParameter('pdo_password', $config['database']['password']);
-        $c->setParameter('logger.name',  $config['logger']['name']);
+        $c->setParameter('catalogueUrl',  $config['catalogue_url']);
+        $c->setParameter('pdo_dsn',       $config['database']['dsn']);
+        $c->setParameter('pdo_user',      $config['database']['user']);
+        $c->setParameter('pdo_password',  $config['database']['password']);
+        $c->setParameter('logger.name',   $config['logger']['name']);
+
+        // ⭐ NEW: JWT secret parameter
+        $c->setParameter('jwt.secret',    $config['jwt_secret']);
 
         // Database
         $c->register(Database::class)
@@ -112,10 +115,13 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
             ->addTag('controller.service_arguments')
             ->setAutowired(true);
 
+        // ⭐ UPDATED RatingsApiController registration WITH JWT secret
         $c->register(RatingsApiController::class)
+            ->addArgument(new Reference(CatalogueService::class))
+            ->addArgument(new Reference(RatingsService::class))
+            ->addArgument($c->getParameter('jwt.secret'))       // pass JWT secret
             ->addMethodCall('setLogger', [new Reference('logger')])
-            ->addTag('controller.service_arguments')
-            ->setAutowired(true);
+            ->addTag('controller.service_arguments');
     }
 
     protected function configureRoutes(RouteCollectionBuilder $routes)
