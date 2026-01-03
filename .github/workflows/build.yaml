@@ -45,13 +45,16 @@ jobs:
 
       - name: Run PHPUnit tests
         working-directory: ratings/html
-        run: vendor/bin/phpunit --testdox --log-junit junit.xml
+        run: |
+          mkdir -p test-results
+          vendor/bin/phpunit --testdox --log-junit test-results/junit.xml
 
       - name: Upload Test Results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: phpunit-results
-          path: ratings/html/junit.xml
+          name: ratings-microservice-test-results
+          path: ratings/html/test-results
 
     build:
       runs-on: robot-shop-runner-azure-dev

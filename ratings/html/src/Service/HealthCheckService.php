@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace robotshop\ratings\Service;
 
 use PDO;
+use PDOException;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 
@@ -15,7 +16,7 @@ class HealthCheckService implements LoggerAwareInterface
     /**
      * @var PDO
      */
-    private $pdo;
+    private PDO $pdo;
 
     public function __construct(PDO $pdo)
     {
@@ -24,6 +25,21 @@ class HealthCheckService implements LoggerAwareInterface
 
     public function checkConnectivity(): bool
     {
-        return $this->pdo->prepare('SELECT 1 + 1 FROM DUAL;')->execute();
+        try {
+            return $this->pdo
+                ->prepare('SELECT 1 + 1')
+                ->execute();
+        } catch (PDOException $e) {
+
+            $this->logger->error('database connectivity check failed', [
+                'service'    => 'ratings',
+                'dependency' => 'database',
+                'error_type' => 'DEPENDENCY_DOWN',
+                'exception'  => get_class($e),
+                'message'    => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 }
