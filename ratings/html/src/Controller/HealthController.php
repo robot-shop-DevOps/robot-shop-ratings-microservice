@@ -19,17 +19,14 @@ class HealthController implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    /**
-     * @var HealthCheckService
-     */
-    private $healthCheckService;
+    private HealthCheckService $healthCheckService;
 
     public function __construct(HealthCheckService $healthCheckService)
     {
         $this->healthCheckService = $healthCheckService;
     }
 
-    public function __invoke(Request $request)
+    public function __invoke(Request $request): JsonResponse
     {
         $checks = [
             'pdo_connectivity' => true,
