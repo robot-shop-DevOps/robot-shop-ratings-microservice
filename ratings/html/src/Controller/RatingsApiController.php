@@ -28,9 +28,9 @@ class RatingsApiController implements LoggerAwareInterface
         RatingsService $ratingsService,
         string $jwtSecret
     ) {
-        $this->ratingsService = $ratingsService;
+        $this->ratingsService   = $ratingsService;
         $this->catalogueService = $catalogueService;
-        $this->jwtSecret = $jwtSecret;
+        $this->jwtSecret        = $jwtSecret;
     }
 
     /**
@@ -38,59 +38,108 @@ class RatingsApiController implements LoggerAwareInterface
      */
     public function put(Request $request, string $sku, int $score): Response
     {
-        // --- JWT CHECK ---
+        /* -------------------------
+           Auth
+        --------------------------*/
         $auth = $request->headers->get('Authorization');
 
         if (!$auth || strpos($auth, 'Bearer ') !== 0) {
-            return new JsonResponse(['error' => 'Missing or invalid Authorization header'], 401);
+            $this->logger->warning('missing or invalid authorization header', [
+                'service'    => 'ratings',
+                'error_type' => 'AUTH_HEADER_INVALID',
+                'sku'        => $sku,
+            ]);
+
+            return new JsonResponse(
+                ['error' => 'Missing or invalid Authorization header'],
+                Response::HTTP_UNAUTHORIZED
+            );
         }
 
         $token = substr($auth, 7);
 
         try {
-            $decoded = \Firebase\JWT\JWT::decode(
+            \Firebase\JWT\JWT::decode(
                 $token,
                 new \Firebase\JWT\Key($this->jwtSecret, 'HS256')
             );
-
-            // Optional: Use user info
-            // $username = $decoded->name;
-
         } catch (\Exception $e) {
-            return new JsonResponse(['error' => 'Invalid or expired token'], 403);
+            $this->logger->warning('invalid or expired token', [
+                'service'    => 'ratings',
+                'error_type' => 'TOKEN_INVALID',
+                'sku'        => $sku,
+                'exception' => get_class($e),
+            ]);
+
+            return new JsonResponse(
+                ['error' => 'Invalid or expired token'],
+                Response::HTTP_FORBIDDEN
+            );
         }
 
-        // --- SCORE SANITIZATION ---
+        /* -------------------------
+           Score sanitization
+        --------------------------*/
         $score = min(max(1, $score), 5);
 
-        // --- SKU VALIDATION ---
+        /* -------------------------
+           SKU validation
+        --------------------------*/
         try {
             if (false === $this->catalogueService->checkSKU($sku)) {
+                $this->logger->warning('sku not found', [
+                    'service'    => 'ratings',
+                    'error_type' => 'SKU_NOT_FOUND',
+                    'sku'        => $sku,
+                ]);
+
                 throw new NotFoundHttpException("$sku not found");
             }
+        } catch (NotFoundHttpException $e) {
+            throw $e;
         } catch (\Exception $e) {
-            throw new HttpException(500, $e->getMessage(), $e);
+            $this->logger->error('catalogue service failure', [
+                'service'    => 'ratings',
+                'dependency' => 'catalogue',
+                'error_type' => 'DEPENDENCY_FAILURE',
+                'sku'        => $sku,
+                'exception'  => get_class($e),
+                'message'    => $e->getMessage(),
+            ]);
+
+            throw new HttpException(500, 'Catalogue service unavailable', $e);
         }
 
-        // --- UPDATE RATING ---
+        /* -------------------------
+           Update rating
+        --------------------------*/
         try {
             $rating = $this->ratingsService->ratingBySku($sku);
 
             if (0 === $rating['avg_rating']) {
-                // First rating
                 $this->ratingsService->addRatingForSKU($sku, $score);
             } else {
-                // Update average
                 $newAvg = (($rating['avg_rating'] * $rating['rating_count']) + $score)
                     / ($rating['rating_count'] + 1);
 
-                $this->ratingsService
-                    ->updateRatingForSKU($sku, $newAvg, $rating['rating_count'] + 1);
+                $this->ratingsService->updateRatingForSKU(
+                    $sku,
+                    $newAvg,
+                    $rating['rating_count'] + 1
+                );
             }
 
             return new JsonResponse(['success' => true]);
 
         } catch (\Exception $e) {
+            $this->logger->error('failed to update rating', [
+                'service'    => 'ratings',
+                'error_type' => 'RATING_UPDATE_FAILED',
+                'sku'        => $sku,
+                'exception'  => get_class($e),
+                'message'    => $e->getMessage(),
+            ]);
+
             throw new HttpException(500, 'Unable to update rating', $e);
         }
     }
@@ -104,12 +153,29 @@ class RatingsApiController implements LoggerAwareInterface
             $rating = $this->ratingsService->ratingBySku($sku);
 
             if (!$rating) {
+                $this->logger->warning('rating not found', [
+                    'service'    => 'ratings',
+                    'error_type' => 'RATING_NOT_FOUND',
+                    'sku'        => $sku,
+                ]);
+
                 throw new NotFoundHttpException("$sku not found");
             }
-        } catch (\Exception $e) {
-            throw new HttpException(500, $e->getMessage(), $e);
-        }
 
-        return new JsonResponse($rating);
+            return new JsonResponse($rating);
+
+        } catch (NotFoundHttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('failed to fetch rating', [
+                'service'    => 'ratings',
+                'error_type' => 'FETCH_RATING_FAILED',
+                'sku'        => $sku,
+                'exception'  => get_class($e),
+                'message'    => $e->getMessage(),
+            ]);
+
+            throw new HttpException(500, 'Unable to fetch rating', $e);
+        }
     }
 }

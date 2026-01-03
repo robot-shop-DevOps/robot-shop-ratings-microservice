@@ -13,43 +13,44 @@ class Database implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    /**
-     * @var string
-     */
-    private $dsn;
-
-    /**
-     * @var string
-     */
-    private $user;
-
-    /**
-     * @var string
-     */
-    private $password;
+    private string $dsn;
+    private string $user;
+    private string $password;
 
     public function __construct(string $dsn, string $user, string $password)
     {
-        $this->dsn = $dsn;
-        $this->user = $user;
+        $this->dsn      = $dsn;
+        $this->user     = $user;
         $this->password = $password;
     }
 
     public function getConnection(): PDO
     {
-        $opt = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        $options = [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_EMULATE_PREPARES   => false,
         ];
 
         try {
-            return new PDO($this->dsn, $this->user, $this->password, $opt);
-        } catch (PDOException $e) {
-            $msg = $e->getMessage();
-            $this->logger->error("Database error $msg");
+            return new PDO($this->dsn, $this->user, $this->password, $options);
 
-            return null;
+        } catch (PDOException $e) {
+            $this->logger->error('database connection failed', [
+                'service'    => 'ratings',
+                'dependency' => 'database',
+                'error_type' => 'DEPENDENCY_DOWN',
+                'exception'  => get_class($e),
+                'message'    => $e->getMessage(),
+                'dsn'        => $this->sanitizeDsn($this->dsn),
+            ]);
+
+            throw $e;
         }
+    }
+
+    private function sanitizeDsn(string $dsn): string
+    {
+        return preg_replace('/password=[^;]+/', 'password=***', $dsn);
     }
 }
