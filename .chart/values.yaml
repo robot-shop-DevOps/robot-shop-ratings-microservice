@@ -65,23 +65,19 @@ deployment:
             name: jwt
             key: JWT_SECRET
 
+      livenessProbe:
+        httpGet:
+          path: /_live
+          port: 8626
+        initialDelaySeconds: 10
+        periodSeconds: 10
+
       readinessProbe:
         httpGet:
           path: /_health
           port: 8626
-        initialDelaySeconds: 20
+        initialDelaySeconds: 10
         periodSeconds: 10
-        timeoutSeconds: 6
-        failureThreshold: 5
-
-      livenessProbe:
-        httpGet:
-          path: /_health
-          port: 8626
-        initialDelaySeconds: 20
-        periodSeconds: 20
-        timeoutSeconds: 6
-        failureThreshold: 5
 
 
 service:
