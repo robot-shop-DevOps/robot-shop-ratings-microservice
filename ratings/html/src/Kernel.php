@@ -80,6 +80,9 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
     {
         $c->loadFromExtension('framework', [
             'secret' => 'S0ME_SECRET',
+            'router' => [
+                'utf8' => true,
+            ],
         ]);
 
         /* -------------------------
@@ -91,11 +94,15 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
                     'type'     => 'stream',
                     'level'    => 'info',
                     'path'     => 'php://stdout',
-                    'formatter'=> JsonFormatter::class,
+                    'formatter'=> 'monolog.formatter.json',
                     'channels' => ['!request'],
                 ],
             ],
         ]);
+
+        $c->register('monolog.formatter.json', JsonFormatter::class)
+            ->setPublic(false);
+
 
         /* -------------------------
            App config
