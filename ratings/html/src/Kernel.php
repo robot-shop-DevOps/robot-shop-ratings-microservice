@@ -137,7 +137,9 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
             ->addMethodCall('setLogger', [new Reference('logger')]);
 
         $c->register(HealthCheckService::class)
-            ->addArgument(new Reference('database.connection'))
+            ->addArgument($c->getParameter('pdo_dsn'))
+            ->addArgument($c->getParameter('pdo_user'))
+            ->addArgument($c->getParameter('pdo_password'))
             ->addMethodCall('setLogger', [new Reference('logger')]);
 
         $c->register(RatingsService::class)
