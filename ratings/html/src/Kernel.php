@@ -149,6 +149,7 @@ class Kernel extends BaseKernel implements EventSubscriberInterface
            Controllers
         --------------------------*/
         $c->register(HealthController::class)
+            ->addArgument(new Reference(HealthCheckService::class)) 
             ->addMethodCall('setLogger', [new Reference('logger')])
             ->addTag('controller.service_arguments');
 
