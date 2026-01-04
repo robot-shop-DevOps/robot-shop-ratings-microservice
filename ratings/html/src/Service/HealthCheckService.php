@@ -13,24 +13,33 @@ class HealthCheckService implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    /**
-     * @var PDO
-     */
-    private PDO $pdo;
+    private ?PDO $pdo = null;
+    private string $pdoUrl;
+    private string $pdoUser;
+    private string $pdoPassword;
 
-    public function __construct(PDO $pdo)
+    public function __construct(string $pdoUrl, string $pdoUser, string $pdoPassword)
     {
-        $this->pdo = $pdo;
+        $this->pdoUrl = $pdoUrl;
+        $this->pdoUser = $pdoUser;
+        $this->pdoPassword = $pdoPassword;
+    }
+
+    private function getPdo(): PDO
+    {
+        if ($this->pdo === null) {
+            $this->pdo = new PDO($this->pdoUrl, $this->pdoUser, $this->pdoPassword);
+        }
+        return $this->pdo;
     }
 
     public function checkConnectivity(): bool
     {
         try {
-            return $this->pdo
+            return $this->getPdo()
                 ->prepare('SELECT 1 + 1')
                 ->execute();
         } catch (PDOException $e) {
-
             $this->logger->error('database connectivity check failed', [
                 'service'    => 'ratings',
                 'dependency' => 'database',
