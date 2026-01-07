@@ -19,6 +19,6 @@ jobs:
       IMAGE: ratings
       NAMESPACE: ratings-microservice
       RELEASE: ratings
-      WORKING_DIR: ./ratings
+      WORKING_DIR: ./ratings/html
       DOCKERFILE_PATH: ./ratings
     secrets: inherit
